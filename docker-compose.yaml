@@ -13,6 +13,6 @@ services:
             capabilities: [gpu]
     ports:
       - 1041:1041
-    shm_size: 1GB
+    shm_size: 16GB
     network_mode: host
     privileged: true

@@ -13,7 +13,7 @@ spec:
   - name: shmdir
     emptyDir:
       medium: Memory
-      sizeLimit: 1Gi
+      sizeLimit: 16Gi
   containers:
   - command:
     - /bin/bash
