@@ -371,6 +371,8 @@ def main():
                                        enabled=args.fp16_mode)
     total_time = AverageMeter()
     for epoch in range(args.start_epoch, args.epochs):
+        start_epoch_time = time.time()
+
         # train for one epoch
         avg_train_time = train(train_loader, model, criterion, scaler, optimizer, epoch)
         total_time.update(avg_train_time)
@@ -386,7 +388,7 @@ def main():
             best_prec1 = max(prec1, best_prec1)
             last_io = {"rcv": 0, "xmit": 0}
             _, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
-            start_time = time.time()
+            start_save_time = time.time()
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
@@ -395,7 +397,8 @@ def main():
                 'optimizer' : optimizer.state_dict(),
             }, is_best, dirpath, epoch)
             real_io, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
-            logger.info(f"Save checkpoint: Time {time.time() - start_time}\tRcv {real_io['rcv']}\tXmit {real_io['xmit']}")
+            logger.info(f"Save checkpoint: Time {time.time() - start_save_time}\tRcv {real_io['rcv']}\tXmit {real_io['xmit']}")
+            logger.info(f"Done epoch {epoch+1}: Time {time.time() - start_epoch_time}")
             if epoch == args.epochs - 1:
                 logger.info(
                     f'##Top-1 {prec1}\n'
