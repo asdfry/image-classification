@@ -28,6 +28,9 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
 
+from utils import logger, update_logger_config, move_nccl_outputs, get_io
+
+
 def fast_collate(batch, memory_format):
     """Based on fast_collate from the APEX example
        https://github.com/NVIDIA/apex/blob/5b5d41034b506591a316c308c3d2cd14d5187e23/examples/imagenet/main_amp.py#L265
@@ -55,18 +58,18 @@ def parse():
                         help='path(s) to dataset (if one path is provided, it is assumed\n' +
                        'to have subdirectories named "train" and "val"; alternatively,\n' +
                        'train and val paths can be specified directly by providing both paths as arguments)')
-    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+    parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50',
                         choices=model_names,
                         help='model architecture: ' +
                         ' | '.join(model_names) +
-                        ' (default: resnet18)')
+                        ' (default: resnet50)')
     parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', default=90, type=int, metavar='N',
-                        help='number of total epochs to run')
+    parser.add_argument('--epochs', default=5, type=int, metavar='N',
+                        help='number of total epochs to run (default: 1)')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts)')
-    parser.add_argument('-b', '--batch-size', default=256, type=int,
+    parser.add_argument('-b', '--batch_size', default=256, type=int,
                         metavar='N', help='mini-batch size per process (default: 256)')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                         metavar='LR', help='Initial learning rate.  Will be scaled by <global batch size>/256: args.lr = args.lr*float(args.batch_size*args.world_size)/256.  A warmup schedule will also be applied over the first 5 epochs.')
@@ -74,8 +77,8 @@ def parse():
                         help='momentum')
     parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                         metavar='W', help='weight decay (default: 1e-4)')
-    parser.add_argument('--print-freq', '-p', default=10, type=int,
-                        metavar='N', help='print frequency (default: 10)')
+    parser.add_argument('--print-freq', '-p', default=1, type=int,
+                        metavar='N', help='print frequency (default: 1)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -91,12 +94,17 @@ def parse():
                         help='Only run 10 iterations for profiling.')
     parser.add_argument('--deterministic', action='store_true')
 
-    parser.add_argument('--fp16-mode', default=False, action='store_true',
+    parser.add_argument('--fp16_mode', default=False, action='store_true',
                         help='Enable half precision mode.')
-    parser.add_argument('--loss-scale', type=float, default=1)
-    parser.add_argument('--channels-last', type=bool, default=False)
+    parser.add_argument('--loss_scale', type=float, default=1)
+    parser.add_argument('--channels_last', type=bool, default=False)
     parser.add_argument('-t', '--test', action='store_true',
                         help='Launch test mode with preset arguments')
+
+    parser.add_argument('-c', "--custom_name", type=str, default=None)
+    parser.add_argument("-le", "--logging_ethernet", type=str, default=None)
+    parser.add_argument("-lr", "--logging_rdma", type=str, default=None)
+
     args = parser.parse_args()
     return args
 
@@ -167,13 +175,8 @@ def main():
     best_prec1 = 0
     args = parse()
 
-    if not len(args.data):
-        raise Exception("error: No data set provided")
-
-    if args.test:
-        print("Test mode - only 10 iterations")
-
     args.distributed = False
+
     if 'WORLD_SIZE' in os.environ:
         args.distributed = int(os.environ['WORLD_SIZE']) > 1
     if 'LOCAL_RANK' in os.environ:
@@ -181,9 +184,39 @@ def main():
     else:
         args.local_rank = 0
 
+    args.gpu = 0
+    args.world_size = 1
+
+    if args.distributed:
+        args.gpu = args.local_rank
+        torch.cuda.set_device(args.gpu)
+        torch.distributed.init_process_group(backend='nccl', init_method='env://')
+        args.world_size = torch.distributed.get_world_size()
+
+    args.total_batch_size = args.world_size * args.batch_size
+    assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
+
+    if args.local_rank == 0:
+        if args.disable_dali:
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-da0"
+        elif args.dali_cpu:
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-da1"
+        else:
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-da2"
+        if args.custom_name:
+            dirpath += f"-{args.custom_name}"
+        os.makedirs(dirpath, exist_ok=True)
+        update_logger_config(dirpath)
+        move_nccl_outputs(dirpath)
+
+    if not len(args.data):
+        raise Exception("error: No data set provided")
+
+    if args.test:
+        print("Test mode - only 10 iterations")
+
     print("fp16_mode = {}".format(args.fp16_mode))
     print("loss_scale = {}".format(args.loss_scale), type(args.loss_scale))
-
     print("\nCUDNN VERSION: {}\n".format(torch.backends.cudnn.version()))
 
     cudnn.benchmark = True
@@ -193,19 +226,6 @@ def main():
         cudnn.deterministic = True
         torch.manual_seed(args.local_rank)
         torch.set_printoptions(precision=10)
-
-    args.gpu = 0
-    args.world_size = 1
-
-    if args.distributed:
-        args.gpu = args.local_rank
-        torch.cuda.set_device(args.gpu)
-        torch.distributed.init_process_group(backend='nccl',
-                                             init_method='env://')
-        args.world_size = torch.distributed.get_world_size()
-
-    args.total_batch_size = args.world_size * args.batch_size
-    assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
     # create model
     if args.pretrained:
@@ -364,20 +384,24 @@ def main():
         if args.local_rank == 0:
             is_best = prec1 > best_prec1
             best_prec1 = max(prec1, best_prec1)
+            last_io = {"rcv": 0, "xmit": 0}
+            _, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
+            start_time = time.time()
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_prec1': best_prec1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best)
+            }, is_best, dirpath, epoch)
+            real_io, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
+            logger.info(f"Save checkpoint: Time {time.time() - start_time}\tRcv {real_io['rcv']}\tXmit {real_io['xmit']}")
             if epoch == args.epochs - 1:
-                print('##Top-1 {0}\n'
-                      '##Top-5 {1}\n'
-                      '##Perf  {2}'.format(
-                      prec1,
-                      prec5,
-                      args.total_batch_size / total_time.avg))
+                logger.info(
+                    f'##Top-1 {prec1}\n'
+                    f'##Top-5 {prec5}\n'
+                    f'##Perf  {args.total_batch_size / total_time.avg}'
+                )
 
 class data_prefetcher():
     """Based on prefetcher from the APEX example
@@ -436,6 +460,10 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
         data_iterator = iter(data_iterator)
     else:
         data_iterator = train_loader
+    
+    if args.local_rank == 0:
+        last_io = {"rcv": 0, "xmit": 0}
+        _, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
 
     for i, data in enumerate(data_iterator):
         if args.disable_dali:
@@ -504,17 +532,29 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
             end = time.time()
 
             if args.local_rank == 0:
-                print('Epoch: [{0}][{1}/{2}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Speed {3:.3f} ({4:.3f})\t'
-                      'Loss {loss.val:.10f} ({loss.avg:.4f})\t'
-                      'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                      'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       epoch, i, train_loader_len,
-                       args.world_size*args.batch_size/batch_time.val,
-                       args.world_size*args.batch_size/batch_time.avg,
-                       batch_time=batch_time,
-                       loss=losses, top1=top1, top5=top5))
+                real_io, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
+                logger.info(
+                    "Epoch: [{0}][{1}/{2}]\t"
+                    "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
+                    "Speed {3:.3f} ({4:.3f})\t"
+                    "Loss {loss.val:.10f} ({loss.avg:.4f})\t"
+                    "Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t"
+                    "Prec@5 {top5.val:.3f} ({top5.avg:.3f})\t"
+                    "Rcv {rcv:<8}\t"
+                    "Xmit {xmit:<8}".format(
+                        epoch + 1,
+                        i,
+                        train_loader_len,
+                        args.world_size * args.batch_size / batch_time.val,
+                        args.world_size * args.batch_size / batch_time.avg,
+                        batch_time=batch_time,
+                        loss=losses,
+                        top1=top1,
+                        top5=top5,
+                        rcv=real_io["rcv"],
+                        xmit=real_io["xmit"],
+                    )
+                )
 
         # Pop range "Body of iteration {}".format(i)
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
@@ -542,6 +582,10 @@ def validate(val_loader, model, criterion):
         data_iterator = iter(data_iterator)
     else:
         data_iterator = val_loader
+
+    if args.local_rank == 0:
+        last_io = {"rcv": 0, "xmit": 0}
+        _, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
 
     for i, data in enumerate(data_iterator):
         if args.disable_dali:
@@ -577,28 +621,38 @@ def validate(val_loader, model, criterion):
 
         # TODO:  Change timings to mirror train().
         if args.local_rank == 0 and i % args.print_freq == 0:
-            print('Test: [{0}/{1}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Speed {2:.3f} ({3:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                  'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                   i, val_loader_len,
-                   args.world_size * args.batch_size / batch_time.val,
-                   args.world_size * args.batch_size / batch_time.avg,
-                   batch_time=batch_time, loss=losses,
-                   top1=top1, top5=top5))
+            real_io, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
+            logger.info(
+                "Test: [{0}/{1}]\t"
+                "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
+                "Speed {2:.3f} ({3:.3f})\t"
+                "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+                "Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t"
+                "Prec@5 {top5.val:.3f} ({top5.avg:.3f})\t"
+                "Rcv {rcv:<8}\t"
+                "Xmit {xmit:<8}".format(
+                    i,
+                    val_loader_len,
+                    args.world_size * args.batch_size / batch_time.val,
+                    args.world_size * args.batch_size / batch_time.avg,
+                    batch_time=batch_time,
+                    loss=losses,
+                    top1=top1,
+                    top5=top5,
+                    rcv=real_io["rcv"],
+                    xmit=real_io["xmit"],
+                )
+            )
 
-    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'
-        .format(top1=top1, top5=top5))
+    print(' * Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
 
     return [top1.avg, top5.avg]
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
-    torch.save(state, filename)
-    if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+def save_checkpoint(state, is_best, dirpath, epoch):
+    torch.save(state, f"{dirpath}/checkpoint.{epoch+1}.pth.tar")
+    # if is_best:
+    #     shutil.copyfile(f"{dirpath}/checkpoint.pth.tar", f"{dirpath}/model_best.pth.tar")
 
 
 class AverageMeter(object):

@@ -1,0 +1,1 @@
+torchrun --nproc_per_node=8 main.py -b 128 -c local --loss_scale 128.0 --workers 4 --lr=0.4 --fp16_mode --disable_dali -le bond0 ./

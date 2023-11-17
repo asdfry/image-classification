@@ -1,0 +1,18 @@
+services:
+  trainer:
+    image: asdfry/dali-example:imagenet
+    volumes:
+      - /home/jsh/volume:/root/mnt
+    command: ["/bin/bash", "-c", "/usr/sbin/sshd -p 1041 && sleep infinity"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            device_ids: ['4', '5', '6', '7']
+            capabilities: [gpu]
+    ports:
+      - 1041:1041
+    shm_size: 1GB
+    network_mode: host
+    privileged: true

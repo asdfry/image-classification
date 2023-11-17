@@ -57,15 +57,15 @@ Usage
 
    optional arguments (for the full list please check `Apex ImageNet example <https://github.com/NVIDIA/apex/tree/master/examples/imagenet>`_)
    -h, --help                  show this help message and exit
-   --arch ARCH, -a ARCH        model architecture: alexnet | resnet | resnet101 | resnet152 | resnet18 | resnet34 | resnet50 | vgg | vgg11 | vgg11_bn | vgg13 | vgg13_bn | vgg16 | vgg16_bn | vgg19 | vgg19_bn (default: resnet18)
+   --arch ARCH, -a ARCH        model architecture: alexnet | resnet | resnet101 | resnet152 | resnet18 | resnet34 | resnet50 | vgg | vgg11 | vgg11_bn | vgg13 | vgg13_bn | vgg16 | vgg16_bn | vgg19 | vgg19_bn (default: resnet50)
    -j N, --workers N           number of data loading workers (default: 4)
-   --epochs N                  number of total epochs to run
+   --epochs N                  number of total epochs to run (default: 5)
    --start-epoch N             manual epoch number (useful on restarts)
    -b N, --batch-size N        mini-batch size (default: 256)
    --lr LR, --learning-rate LR initial learning rate
    --momentum M                momentum
    --weight-decay W, --wd W    weight decay (default: 1e-4)
-   --print-freq N, -p N        print frequency (default: 10)
+   --print-freq N, -p N        print frequency (default: 1)
    --resume PATH               path to latest checkpoint (default: none)
    -e, --evaluate              evaluate model on validation set
    --pretrained                use pre-trained model
