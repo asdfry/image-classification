@@ -56,6 +56,7 @@ RUN ln -s /root/mnt/datasets/imagenet/train train && ln -s /root/mnt/datasets/im
 # Copy files that required for training
 COPY main.py main.py
 COPY utils.py utils.py
+COPY command.md command.md
 
 # For util
 RUN echo "alias n='nvitop --colorful'" >> ~/.bashrc
