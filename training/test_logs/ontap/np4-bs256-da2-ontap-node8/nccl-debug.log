@@ -1,0 +1,19 @@
+vnode1:88:88 [1] NCCL INFO cudaDriverVersion 12020
+vnode1:89:89 [2] NCCL INFO Bootstrap : Using eth0:192.168.121.229<0>
+vnode1:89:89 [2] NCCL INFO NET/Plugin : No plugin found (libnccl-net.so), using internal implementation
+vnode1:89:115 [2] NCCL INFO NET/IB : No device found.
+vnode1:89:115 [2] NCCL INFO NET/Socket : Using [0]eth0:192.168.121.229<0> [1]eth1:192.168.10.91<0> [2]br-ca6b59c21795:172.18.0.1<0> [3]br-f9d20ab8eb60:172.19.0.1<0> [4]flannel.1:10.244.0.0<0> [5]cni0:10.244.0.1<0>
+vnode1:89:115 [2] NCCL INFO Using network Socket
+vnode1:90:114 [3] NCCL INFO Trees [0] -1/-1/-1->3->2 [1] -1/-1/-1->3->2 [2] -1/-1/-1->3->2 [3] -1/-1/-1->3vnode1:89:115 [2] NCCL INFO Channel 00 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Channel 01 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Channel 02 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Channel 03 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Connected all rings
+vnode1:89:115 [2] NCCL INFO Channel 00 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Channel 01 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Channel 02 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Channel 03 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:89:115 [2] NCCL INFO Connected all trees
+vnode1:89:115 [2] NCCL INFO threadThresholds 8/8/64 | 32/8/64 | 512 | 512
+vnode1:89:115 [2] NCCL INFO 4 coll channels, 4 p2p channels, vnode1:87:112 [0] NCCL Ivnode1:89:115 [2] NCCL INFO comm 0x56010452d730 rank 2 nranks 4 cudaDev 2 busvnode1:87:119 [0] NCCL INFO vnode1:90:116 [3] NCCL INFO [Service thread] Connevnode1:87:87 [0] NCCL INFO comm 0x560146305780 rank 0 nranks 4 cudaDev 0 busId 3000 - Abort COMPLETE
+busId 6000 - Abort COMPLETE

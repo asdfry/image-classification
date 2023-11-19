@@ -1,0 +1,21 @@
+vnode1:315:315 [2] NCCL INFO cudaDriverVersion 12020
+vnode1:314:314 [1] NCCL INFO Bootstrap : Using eth0:192.168.121.155<0>
+vnode1:314:314 [1] NCCL INFO NET/Plugin : No plugin found (libnccl-net.so), using internal implementation
+vnode1:314:341 [1] NCCL INFO NET/IB : No device found.
+vnode1:314:341 [1] NCCL INFO NET/Socket : Using [0]eth0:192.168.121.155<0> [1]eth1:192.168.10.111<0> [2]flannel.1:10.244.2.0<0> [3]cni0:10.244.2.1<0>
+vnode1:314:341 [1] NCCL INFO Using network Socket
+vnode1:314:341 [1] NCCL INFO Trees [0] 2/-1/-1->1->0 [1] 2/-1/-1->1->0 [2] 2/-1/-1->1->0 [3] 2/-1/-1->1->0
+vnode1:315:340 [2] NCCL INFO Channel 00 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Channel 01 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Channel 02 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Channel 03 : 2[5000] -> 3[6000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Connected all rings
+vnode1:315:340 [2] NCCL INFO Channel 00 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Channel 01 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Channel 02 : 2[5000] -> 1[4000] via SHM/direct/direct
+vnode1:315:340 [2] NCCL INFO Channel 03 : 2[5000] -> 1[4000] vnode1:313:338 [0] NCCvnode1:315:340 [2] NCCL INFO Connected all trees
+vnode1:315:340 [2] NCCL INFO threadThresholds 8/8/64 | 32/8/64 | 512 | 512
+vnode1:315:340 [2] NCCL INFO 4 coll channels, 4 p2p channels, 2 vnode1:313:338 [0] NCCvnode1:315:340 [2] NCCL INFO comm 0x564d3aeb8c10 rank 2 nranks 4 cudaDev 2 busIdvnode1:313:345 [0] NCCL INFO [Service thread] Connection closed by localRank 0
+vnode1:313:313 [0] NCCL INFO comm 0x55d70842f720 rank 0 nranks 4 cudaDev 0 busId 3000 - Abort COMPLETE
+5000 - Abort COMPLETE
+ETE
