@@ -34,7 +34,7 @@ spec:
     securityContext:
       privileged: true
     volumeMounts:
-    - name: jsh-volume-local-volume-local
+    - name: jsh-volume-local
       mountPath: /root/mnt
     - name: shmdir
       mountPath: /dev/shm
