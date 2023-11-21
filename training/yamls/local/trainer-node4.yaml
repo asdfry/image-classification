@@ -7,7 +7,7 @@ metadata:
   # namespace: common
 spec:
   volumes:
-  - name: jsh-volume-local-volume-local
+  - name: jsh-volume-local
     hostPath:
       path: /home/jsh/volume
       type: Directory
