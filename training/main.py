@@ -193,6 +193,7 @@ def create_dali_pipeline(data_dir, crop, size, seed, shard_id, num_shards, dali_
         images.gpu(),
         dtype=types.FLOAT,
         output_layout="CHW",
+        crop=(crop, crop),
         mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
         std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
     )
