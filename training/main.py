@@ -104,6 +104,7 @@ def parse():
     parser.add_argument('-c', "--custom_name", type=str, default=None)
     parser.add_argument("-le", "--logging_ethernet", type=str, default=None)
     parser.add_argument("-lr", "--logging_rdma", type=str, default=None)
+    parser.add_argument("-nc", "--not_container", type=str, default=None)
 
     args = parser.parse_args()
     return args
@@ -117,55 +118,84 @@ def to_python_float(t):
 
 
 @pipeline_def
-def create_dali_pipeline(data_dir, crop, size, shard_id, num_shards, dali_cpu=False, is_training=True):
-    images, labels = fn.readers.file(file_root=data_dir,
-                                     shard_id=shard_id,
-                                     num_shards=num_shards,
-                                     random_shuffle=is_training,
-                                     pad_last_batch=True,
-                                     name="Reader")
-    dali_device = 'cpu' if dali_cpu else 'gpu'
-    decoder_device = 'cpu' if dali_cpu else 'mixed'
-    # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and GPU to avoid reallocations in runtime
-    device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
-    host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
-    # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
-    preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
-    preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
-    if is_training:
-        images = fn.decoders.image_random_crop(images,
-                                               device=decoder_device, output_type=types.RGB,
-                                               device_memory_padding=device_memory_padding,
-                                               host_memory_padding=host_memory_padding,
-                                               preallocate_width_hint=preallocate_width_hint,
-                                               preallocate_height_hint=preallocate_height_hint,
-                                               random_aspect_ratio=[0.8, 1.25],
-                                               random_area=[0.1, 1.0],
-                                               num_attempts=100)
-        images = fn.resize(images,
-                           device=dali_device,
-                           resize_x=crop,
-                           resize_y=crop,
-                           interp_type=types.INTERP_TRIANGULAR)
-        mirror = fn.random.coin_flip(probability=0.5)
-    else:
-        images = fn.decoders.image(images,
-                                   device=decoder_device,
-                                   output_type=types.RGB)
-        images = fn.resize(images,
-                           device=dali_device,
-                           size=size,
-                           mode="not_smaller",
-                           interp_type=types.INTERP_TRIANGULAR)
-        mirror = False
+def create_dali_pipeline(data_dir, crop, size, seed, shard_id, num_shards, dali_cpu=False, is_training=True):
+    # images, labels = fn.readers.file(file_root=data_dir,
+    #                                  shard_id=shard_id,
+    #                                  num_shards=num_shards,
+    #                                  random_shuffle=is_training,
+    #                                  pad_last_batch=True,
+    #                                  name="Reader")
+    # dali_device = 'cpu' if dali_cpu else 'gpu'
+    # decoder_device = 'cpu' if dali_cpu else 'mixed'
+    # # ask nvJPEG to preallocate memory for the biggest sample in ImageNet for CPU and GPU to avoid reallocations in runtime
+    # device_memory_padding = 211025920 if decoder_device == 'mixed' else 0
+    # host_memory_padding = 140544512 if decoder_device == 'mixed' else 0
+    # # ask HW NVJPEG to allocate memory ahead for the biggest image in the data set to avoid reallocations in runtime
+    # preallocate_width_hint = 5980 if decoder_device == 'mixed' else 0
+    # preallocate_height_hint = 6430 if decoder_device == 'mixed' else 0
+    # if is_training:
+    #     images = fn.decoders.image_random_crop(images,
+    #                                            device=decoder_device, output_type=types.RGB,
+    #                                            device_memory_padding=device_memory_padding,
+    #                                            host_memory_padding=host_memory_padding,
+    #                                            preallocate_width_hint=preallocate_width_hint,
+    #                                            preallocate_height_hint=preallocate_height_hint,
+    #                                            random_aspect_ratio=[0.8, 1.25],
+    #                                            random_area=[0.1, 1.0],
+    #                                            num_attempts=100)
+    #     images = fn.resize(images,
+    #                        device=dali_device,
+    #                        resize_x=crop,
+    #                        resize_y=crop,
+    #                        interp_type=types.INTERP_TRIANGULAR)
+    #     mirror = fn.random.coin_flip(probability=0.5)
+    # else:
+    #     images = fn.decoders.image(images,
+    #                                device=decoder_device,
+    #                                output_type=types.RGB)
+    #     images = fn.resize(images,
+    #                        device=dali_device,
+    #                        size=size,
+    #                        mode="not_smaller",
+    #                        interp_type=types.INTERP_TRIANGULAR)
+    #     mirror = False
 
-    images = fn.crop_mirror_normalize(images.gpu(),
-                                      dtype=types.FLOAT,
-                                      output_layout="CHW",
-                                      crop=(crop, crop),
-                                      mean=[0.485 * 255,0.456 * 255,0.406 * 255],
-                                      std=[0.229 * 255,0.224 * 255,0.225 * 255],
-                                      mirror=mirror)
+    # images = fn.crop_mirror_normalize(images.gpu(),
+    #                                   dtype=types.FLOAT,
+    #                                   output_layout="CHW",
+    #                                   crop=(crop, crop),
+    #                                   mean=[0.485 * 255,0.456 * 255,0.406 * 255],
+    #                                   std=[0.229 * 255,0.224 * 255,0.225 * 255],
+    #                                   mirror=mirror)
+    # labels = labels.gpu()
+    # return images, labels
+
+    images = fn.readers.numpy(
+        device="cpu" if dali_cpu else "gpu",
+        file_root=data_dir,
+        file_filter="*.image.npy",
+        shard_id=shard_id,
+        num_shards=num_shards,
+        seed=seed,
+        pad_last_batch=True,
+        name="Reader",
+    )
+    labels = fn.readers.numpy(
+        device="cpu" if dali_cpu else "gpu",
+        file_root=data_dir,
+        file_filter="*.label.npy",
+        shard_id=shard_id,
+        num_shards=num_shards,
+        seed=seed,
+        pad_last_batch=True,
+    )
+    images = fn.crop_mirror_normalize(
+        images.gpu(),
+        dtype=types.FLOAT,
+        output_layout="CHW",
+        mean=[0.485 * 255, 0.456 * 255, 0.406 * 255],
+        std=[0.229 * 255, 0.224 * 255, 0.225 * 255],
+    )
     labels = labels.gpu()
     return images, labels
 
@@ -197,17 +227,16 @@ def main():
     assert torch.backends.cudnn.enabled, "Amp requires cudnn backend to be enabled."
 
     if args.local_rank == 0:
-        if args.disable_dali:
-            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-da0"
-        elif args.dali_cpu:
-            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-da1"
+        if args.dali_cpu:
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-gds0"
         else:
-            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-da2"
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-gds1"
+        if args.not_container:
+            dirpath = dirpath.replace("/root/mnt", args.not_container)
         if args.custom_name:
             dirpath += f"-{args.custom_name}"
         os.makedirs(dirpath, exist_ok=True)
         update_logger_config(dirpath)
-        move_nccl_outputs(dirpath)
 
     if not len(args.data):
         raise Exception("error: No data set provided")
@@ -370,6 +399,10 @@ def main():
                                        growth_interval=100,
                                        enabled=args.fp16_mode)
     total_time = AverageMeter()
+
+    if args.local_rank == 0:
+        move_nccl_outputs(dirpath)
+
     for epoch in range(args.start_epoch, args.epochs):
         start_epoch_time = time.time()
 
@@ -384,8 +417,8 @@ def main():
 
         # remember best prec@1 and save checkpoint
         if args.local_rank == 0:
-            is_best = prec1 > best_prec1
-            best_prec1 = max(prec1, best_prec1)
+            # is_best = prec1 > best_prec1
+            # best_prec1 = max(prec1, best_prec1)
             last_io = {"rcv": 0, "xmit": 0}
             _, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
             start_save_time = time.time()
@@ -393,9 +426,8 @@ def main():
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
-                'best_prec1': best_prec1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best, dirpath, epoch)
+            }, dirpath, epoch)
             real_io, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
             logger.info(f"Save checkpoint: Time {time.time() - start_save_time}\tRcv {real_io['rcv']}\tXmit {real_io['xmit']}")
             logger.info(f"Done epoch {epoch+1}: Time {time.time() - start_epoch_time}")
@@ -463,12 +495,14 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
         data_iterator = iter(data_iterator)
     else:
         data_iterator = train_loader
-    
+
     if args.local_rank == 0:
         last_io = {"rcv": 0, "xmit": 0}
         _, last_io = get_io(last_io, args.logging_ethernet, args.logging_rdma)
 
     for i, data in enumerate(data_iterator):
+        # if i < 1100:
+        #     continue
         if args.disable_dali:
             input, target = data
             train_loader_len = len(train_loader)
@@ -509,7 +543,7 @@ def train(train_loader, model, criterion, scaler, optimizer, epoch):
         if args.prof >= 0: torch.cuda.nvtx.range_pop()
         scaler.update()
 
-        if i%args.print_freq == 0:
+        if i % args.print_freq == 0:
             # Every print_freq iterations, check the loss, accuracy, and speed.
             # For best performance, it doesn't make sense to print these metrics every
             # iteration, since they incur an allreduce and some host<->device syncs.
@@ -652,7 +686,7 @@ def validate(val_loader, model, criterion):
     return [top1.avg, top5.avg]
 
 
-def save_checkpoint(state, is_best, dirpath, epoch):
+def save_checkpoint(state, dirpath, epoch):
     torch.save(state, f"{dirpath}/checkpoint.{epoch+1}.pth.tar")
     # if is_best:
     #     shutil.copyfile(f"{dirpath}/checkpoint.pth.tar", f"{dirpath}/model_best.pth.tar")
@@ -704,8 +738,11 @@ def accuracy(output, target, topk=(1,)):
 
     res = []
     for k in topk:
-        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100.0 / batch_size))
+        try:
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
+            res.append(correct_k.mul_(100.0 / batch_size))
+        except:
+            res.append(torch.Tensor([0]).cuda())
     return res
 
 

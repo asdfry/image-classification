@@ -1,3 +1,29 @@
+# create symbolic link
+### ontap
+```
+rm train val && ln -s /ontap/jsh/volume/datasets/imagenet-sample-numpy/train train && ln -s /ontap/jsh/volume/datasets/imagenet-sample-numpy/val val
+```
+### gpfs
+```
+rm train val && ln -s /gpfs/jsh/volume/datasets/imagenet-sample-numpy/train train && ln -s /gpfs/jsh/volume/datasets/imagenet-sample-numpy/val val
+```
+# node2
+### ontap (dali numpy reader with cpu + gds off)
+```
+torchrun --nproc_per_node=2 main.py -b 1 -c ontap-node2 -nc /ontap/jsh/volume --workers 4 --fp16_mode -lr mlx5_3 --dali_cpu ./
+```
+### ontap (dali numpy reader with gpu + gds off)
+```
+torchrun --nproc_per_node=2 main.py -b 1 -c ontap-node2 -nc /ontap/jsh/volume --workers 4 --fp16_mode -lr mlx5_3 ./
+```
+### gpfs (dali numpy reader with cpu + gds off)
+```
+torchrun --nproc_per_node=2 main.py -b 1 -c gpfs-node2 -nc /gpfs/jsh/volume --workers 4 --fp16_mode -lr mlx5_3 --dali_cpu ./
+```
+### gpfs (dali numpy reader with gpu + gds on)
+```
+torchrun --nproc_per_node=2 main.py -b 1 -c gpfs-node2 -nc /gpfs/jsh/volume --workers 4 --fp16_mode -lr mlx5_3 ./
+```
 # node4
 ### local (dali off)
 ```
