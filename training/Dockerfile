@@ -50,10 +50,8 @@ RUN apt-get install -y curl python3.10-dev python3.10-distutils && \
 RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
     apt-get install git-lfs
 
-# Create symbolic link
-RUN ln -s /root/mnt/datasets/imagenet/train train && ln -s /root/mnt/datasets/imagenet/val val
-
 # Copy files that required for training
+COPY run.sh run.sh
 COPY main.py main.py
 COPY utils.py utils.py
 COPY command.md command.md

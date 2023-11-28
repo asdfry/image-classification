@@ -1,6 +1,6 @@
 services:
   trainer:
-    image: asdfry/dali-example:imagenet
+    image: asdfry/train-resnet:20231128
     volumes:
       - /home/jsh/volume:/root/mnt
     command: ["/bin/bash", "-c", "/usr/sbin/sshd -p 1041 && sleep infinity"]
