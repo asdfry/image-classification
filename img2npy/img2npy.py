@@ -7,12 +7,26 @@ from glob import glob
 from tqdm import tqdm
 
 
+def img_to_numpy(img_path, res):
+    img = cv2.imread(img_path)  # Read image
+    upscaled_img = cv2.resize(  # Upsacle image
+        img,
+        dsize=(resolutions[res][0], resolutions[res][1]),
+        interpolation=cv2.INTER_LINEAR,
+    )
+    img_array = np.asarray(upscaled_img)  # Image to array
+    # fn.crop_mirror_normalize(output_layout="CHW")로 해결 가능하므로 아래 코드는 주석 처리
+    # img_array = np.moveaxis(img_array, -1, 0)  # Channel first
+    return img_array
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dir", type=str)
+parser.add_argument("-r", "--res", type=str)
 parser.add_argument("-hf", "--half", action="store_true")
+parser.add_argument("-qt", "--quarter", action="store_true")
 args = parser.parse_args()
 
-img_dir = args.dir
 black_list = []
 resolutions = {
     "sd": (854, 480),
@@ -22,56 +36,72 @@ resolutions = {
     "uhd": (3840, 2160),
 }
 
-for res in resolutions.keys():
-    h = 0
-    w = 0
-    img_cnt = 0
-    npy_dir = f"{img_dir}-numpy-{res}" if not args.half else f"{img_dir}-half-numpy-{res}"
+if args.quarter:
+    npy_dir = f"{args.dir}-quarter-numpy"
+    div = 4
+elif args.half:
+    npy_dir = f"{args.dir}-half-numpy"
+    div = 2
+else:
+    npy_dir = f"{args.dir}-numpy"
+    div = 1
 
-    for tv in ["train", "val"]:
-        os.makedirs(f"{npy_dir}/{tv}", exist_ok=True)
-        labels = []
-        img_paths = glob(f"{img_dir}/{tv}/**/*.JPEG")
+npy_dir = f"{npy_dir}-{args.res}"
+labels = {}
 
-        for idx, img_path in enumerate(tqdm(img_paths)):
-            if img_path in black_list:
-                continue
+tv = "train"
+os.makedirs(f"{npy_dir}/{tv}", exist_ok=True)
+img_paths = glob(f"{args.dir}/{tv}/**/*.JPEG")
 
-            # Read image
-            img = cv2.imread(img_path)
+for img_path in tqdm(img_paths[: len(img_paths) // div]):
+    if img_path in black_list:
+        continue
 
-            # Upsacle image
-            upscaled_img = cv2.resize(
-                img,
-                dsize=(resolutions[res][0], resolutions[res][1]),
-                interpolation=cv2.INTER_LINEAR,
-            )
+    img_array = img_to_numpy(img_path, args.res)
 
-            # Image to array
-            img_array = np.asarray(upscaled_img)
-            # fn.crop_mirror_normalize 인자로 output_layout="CHW"를 주면 되므로 아래 코드는 주석 처리함
-            # img_array = np.moveaxis(img_array, -1, 0)
-            # 흑백 이미지 or 가로 또는 세로가 224 미만인 이미지 스킵
-            if len(img_array.shape) == 2 or img_array.shape[0] < 224 or img_array.shape[1] < 224:
-                black_list.append(img_path)
-                continue
-            file = img_path.split("/")[-1]
-            file = file.replace("JPEG", "image.npy")
-            np.save(f"{npy_dir}/{tv}/{file}", img_array)
+    # Skip grayscale image
+    if len(img_array.shape) == 2:
+        black_list.append(img_path)
+        continue
 
-            # Label
-            label = img_path.split("/")[-2]
-            if not label in labels:
-                labels.append(label)
-            file = file.replace("image.npy", "label.npy")
-            np.save(f"{npy_dir}/{tv}/{file}", np.array([len(labels)]))
+    file = img_path.split("/")[-1]
+    file = file.replace("JPEG", "image.npy")
+    np.save(f"{npy_dir}/{tv}/{file}", img_array)
 
-            # For calculate resolution
-            h += img_array.shape[0]
-            w += img_array.shape[1]
-            img_cnt += 1
+    # Label
+    label = img_path.split("/")[-2]
+    if not label in labels:
+        labels[label] = len(labels)
+    file = file.replace("image.npy", "label.npy")
+    np.save(f"{npy_dir}/{tv}/{file}", np.array([labels[label]]))
 
-            if args.half and img_cnt == len(img_paths) // 2:
-                break
+print(f"[{args.res}] Done converting to numpy ({tv})")
 
-    print(f"{res}: {int(w/img_cnt)} x {int(h/img_cnt)}")
+tv = "val"
+os.makedirs(f"{npy_dir}/{tv}", exist_ok=True)
+img_paths = glob(f"{args.dir}/{tv}/**/*.JPEG")
+
+for img_path in tqdm(img_paths):
+    label = img_path.split("/")[-2]
+
+    if img_path in black_list:
+        continue
+    elif not label in labels:
+        continue
+
+    img_array = img_to_numpy(img_path, args.res)
+
+    # Skip grayscale image
+    if len(img_array.shape) == 2:
+        black_list.append(img_path)
+        continue
+
+    file = img_path.split("/")[-1]
+    file = file.replace("JPEG", "image.npy")
+    np.save(f"{npy_dir}/{tv}/{file}", img_array)
+
+    # Label
+    file = file.replace("image.npy", "label.npy")
+    np.save(f"{npy_dir}/{tv}/{file}", np.array([labels[label]]))
+
+print(f"[{args.res}] Done converting to numpy ({tv})")
