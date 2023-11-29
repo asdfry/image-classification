@@ -229,9 +229,9 @@ def main():
 
     if args.local_rank == 0:
         if args.dali_cpu:
-            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-gds0"
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-cpu"
         else:
-            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-gds1"
+            dirpath = f"/root/mnt/output/{args.arch}/np{args.world_size}-bs{args.batch_size}-gpu"
         if args.not_container:
             dirpath = dirpath.replace("/root/mnt", args.not_container)
         if args.custom_name:
